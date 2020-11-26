@@ -6,6 +6,9 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+#######################
+#LOADING SET UP PART 1
+######################
 knitr::opts_chunk$set(echo = TRUE)
 
 root.dir = "https://github.com/amghazzawi/airbnb-predictions"
@@ -119,7 +122,7 @@ nn_function <- function(measureFrom,measureTo,k) {
 #######################
 # Data Loading Part 1 
 ######################
-listings <- read_csv("https://raw.githubusercontent.com/amghazzawi/airbnb-predictions/main/listings.csv?token=AQ3VEIT2USJ4T5L25RWWQI27XM33Q")
+listings <- read_csv("listings.csv")
 
 districts <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=GEBIED_STADSDELEN&THEMA=gebiedsindeling") 
 
@@ -164,14 +167,20 @@ swim <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=ZW
 
 
 ``` {r}
+#######################
+# Data Loading Part 2 
+######################
 neighborhoods.sf <- neighborhoods %>%
   st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
-  st_transform('ESRI:102658')
+  st_transform('EPSG:28992')
 
 listings.sf  <- listings %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
   st_transform(st_crs(neighborhoods.sf))
 
+#######################
+# Neighborhood Plot
+######################
 ggplot() +
   geom_sf(data = neighborhoods.sf, fill = "grey60") +
   geom_sf(data = listings.sf, aes(colour = q5(price)), 
@@ -183,3 +192,132 @@ ggplot() +
        subtitle = "Figure X") +
   mapTheme()
 ```
+
+
+``` {r}
+#######################
+# District Plot
+######################
+districts.sf <- districts %>%
+  st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
+  st_transform('EPSG:28992')
+
+listings.sf  <- listings %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
+  st_transform(st_crs(districts.sf))
+
+ggplot() +
+  geom_sf(data = districts.sf, fill = "black") +
+  geom_sf(data = listings.sf, aes(colour = q5(price)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette4,
+                      labels = qBr(listings.sf, "price"),
+                      name = "Nightly Airbnb Price\n(Quintile Breaks)") +
+  labs(title="Nightly Airbnb Price, Amsterdam",
+       subtitle = "Figure X") +
+  mapTheme()
+```
+
+``` {r}
+#######################
+# Zipcode Plot
+######################
+zipcode.sf <- zipcode4 %>%
+  st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
+  st_transform('EPSG:28992')
+
+listings.sf  <- listings %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
+  st_transform(st_crs(zipcode.sf))
+
+ggplot() +
+  geom_sf(data = zipcode.sf, fill = "grey50") +
+  geom_sf(data = listings.sf, aes(colour = q5(price)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette4,
+                      labels = qBr(listings.sf, "price"),
+                      name = "Nightly Airbnb Price\n(Quintile Breaks)") +
+  labs(title="Nightly Airbnb Price, Amsterdam",
+       subtitle = "Figure X") +
+  mapTheme()
+```
+
+
+
+```{r install-mapboxapi, eval = FALSE}
+#######################
+# Mapbox Integration
+######################
+install.packages("mapboxapi", dependencies = TRUE)
+```
+
+```{r install-token, eval = FALSE}
+#######################
+# Mapbox Tokens
+######################
+my_token <- "pk.eyJ1IjoiZGtoYW5ka2UiLCJhIjoiY2tnMmI1eDVtMDMwMTJ0cGQwY2NmNGNkNSJ9.kSDKluQUL8p3oIpkX1Qjvg"
+
+library(mapboxapi)
+mb_access_token(my_token)
+
+```
+* `streets-v11`: [The core Mapbox Streets basemap](https://www.mapbox.com/maps/streets)
+* `outdoors-v11`: [A basemap designed for outdoor recreation uses](https://www.mapbox.com/maps/outdoors)
+* `light-v10`: [A light, greyscale background suitable for thematic overlay](https://www.mapbox.com/maps/light)
+* `dark-v10`: [A dark basemap suitable for thematic overlay](https://www.mapbox.com/maps/dark)
+* `satellite-v9`: [A global satellite basemap derived from MODIS, Landsat, & proprietary imagery sources](https://www.mapbox.com/maps/satellite)
+* `satellite-streets-v11`: The satellite basemap with a streets overlay
+
+
+```{r mapbox-map}
+#######################
+# Mapbox Styling
+######################
+library(leaflet)
+library(mapboxapi)
+
+mapbox_map <- leaflet() %>%
+  addMapboxTiles(style_id = "light-v10",
+                 username = "mapbox") 
+
+mapbox_map
+```
+
+```{r geocode-central amsterdam}
+############################
+# Mapbox Amsterdam Geocoding
+############################
+afhaus <- mb_geocode("Westermarkt 20, 1016 GV Amsterdam, Netherlands")
+
+afhaus #takes long lat pair and #tidygeocode package!
+```
+
+```{r view-central amsterdam}
+#######################
+# Mapbox Plot Amsterdam
+######################
+mapbox_map %>%
+  setView(lng = afhaus[1],
+          lat = afhaus[2],
+          zoom = 12)
+
+```
+
+
+```{r map-site-neighborhoods map box}
+#######################
+# Mapbox with Districts
+######################
+mapbox_map %>%
+  addPolygons(data = districts)
+
+```
+
+``` {r}
+
+#Double checking how it looks with Mapview - CAN DELETE
+
+mapview(districts.sf)
+```
+
+
