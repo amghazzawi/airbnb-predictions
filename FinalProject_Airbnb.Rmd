@@ -163,6 +163,11 @@ markets <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG
 playgrounds <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=SPORT_OPENBAAR&THEMA=sport")
 
 swim <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=ZWEMWATER&THEMA=zwemwater")
+
+monuments <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=MONUMENTEN&THEMA=monumenten")
+
+monuments <- monuments[monuments$Soort %in% c("Beeldhouwkunst", "Bouwwerk", "Bouwblok", "Park Terrein"), ]
+
 ```
 
 
@@ -189,7 +194,7 @@ ggplot() +
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
-       subtitle = "Figure X") +
+       subtitle = "Figure 1") +
   mapTheme()
 ```
 
@@ -214,7 +219,7 @@ ggplot() +
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
-       subtitle = "Figure X") +
+       subtitle = "Figure 2") +
   mapTheme()
 ```
 
@@ -238,7 +243,7 @@ ggplot() +
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
-       subtitle = "Figure X") +
+       subtitle = "Figure 3") +
   mapTheme()
 ```
 
@@ -318,6 +323,198 @@ mapbox_map %>%
 #Double checking how it looks with Mapview - CAN DELETE
 
 mapview(districts.sf)
+```
+
+
+```{r echo=FALSE, fig.height=7, fig.width=7, message=FALSE, warning=FALSE}
+listings %>% 
+  dplyr::select(price, neighbourhood, room_type) %>%
+  gather(Variable, Value, -price) %>% 
+   ggplot(aes(Value, price)) +
+     geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+     facet_wrap(~Variable, ncol = 1, scales = "free") +
+     labs(title = "Price as a function of\ncategorical variables", y = "Mean_Price") +
+     plotTheme() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+numericVars <- 
+  select_if(st_drop_geometry(listings.sf), is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation across numeric variables") 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+avgneighb_price <- 
+  listings.sf %>% group_by(neighbourhood) %>% summarise(meanprice = mean(price))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Airbnb located in city center neighborhoods
+citycenterlist <- list("Centrum-Oost",
+                        "Centrum-West",
+                       "Zuid",
+                       "IJburg - Zeeburgereiland",
+                       "Oud-Noord",
+                       "De Pijp - Rivierenbuurt"
+                        )
+listings.sf <- listings.sf %>%
+  mutate(City_Center = neighbourhood %in% citycenterlist)
+listings.sf$City_Center <- ifelse(listings.sf$City_Center == "TRUE", 1, 0)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Airbnb provides entire home to tenant
+entirehomelist <- list("Entire home/apt"
+                        )
+listings.sf <- listings.sf %>%
+  mutate(Entire_Home = room_type %in% entirehomelist)
+listings.sf$Entire_Home <- ifelse(listings.sf$Entire_Home == "TRUE", 1, 0)
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+st_c <- st_coordinates
+
+## Metro Stops
+metro_stops.sf <- metro_stops%>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+metro_stops.sf <- st_join(metro_stops.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    metrostops_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_stops.sf)), 1))
+
+## Metro Lines
+metro_lines.sf <- metro_lines%>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+metro_stops.sf <- st_join(metro_lines.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    metrolines_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_lines.sf)), 3))
+
+## Swimming Areas
+swim.sf <- swim%>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+swim.sf <- st_join(swim.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    swim_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(swim.sf)), 1))
+
+
+## Wall Art
+wall_art.sf <- wall_art%>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+metro_stops.sf <- st_join(wall_art.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    wallart_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(wall_art.sf)), 1))
+
+## Markets
+markets.sf <- markets%>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+markets.sf <- st_join(markets.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    markets_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(markets.sf)), 1))
+
+## Playgrounds
+playgrounds.sf <- playgrounds %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+playgrounds.sf <- st_join(playgrounds.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    playgrounds_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(playgrounds.sf)), 2))
+
+## Student Housing
+students.sf <- student_housing %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+students.sf <- st_join(students.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    students_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(students.sf)), 2))
+
+## Historic buildings
+hist_build.sf <- hist_build %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+hist_build.sf <- st_join(hist_build.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    histbuild_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(hist_build.sf)), 3))
+
+## Monumuments
+monuments.sf <- monuments %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+monuments.sf <- st_join(monuments.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    monuments_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(monuments.sf)), 3))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
+                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3))
+
+summary(reg1)
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#Subset listings dataframe into all homes with listed sale prices
+rents <- subset(listings.sf, price > 0)
+
+#Setting up test and training datasets
+inTrain <- createDataPartition( 
+  y = paste(listings.sf$neighbourhood), 
+  p = .70, list = FALSE)
+
+rents.training <- rents[inTrain,] 
+rents.test <- rents[-inTrain,]  
+
+#Multivariate regression
+reg.training <- lm(price ~ ., data = st_drop_geometry(rents.training) %>% 
+             dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3))
+
+stargazer(
+  reg.training,
+  type = "text",
+  title = "Linear Model Summary Table",
+  dep.var.caption = " ",
+  dep.var.labels = "Model Features")
 ```
 
 
