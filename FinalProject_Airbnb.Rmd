@@ -35,6 +35,8 @@ library(broom)
 library(rmarkdown)
 library(knitr)
 library(kableExtra)
+library(osmdata)
+
 ```
 
 ```{r warning=FALSE, include=FALSE}
@@ -247,7 +249,92 @@ ggplot() +
   mapTheme()
 ```
 
+``` {r}
+#Setting the bounding box to pull in OSM data
+xmin = st_bbox(districts)[[1]]
+ymin = st_bbox(districts)[[2]]
+xmax = st_bbox(districts)[[3]]  
+ymax = st_bbox(districts)[[4]]
 
+# Bars
+bar <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'amenity', value = c("bar", "biergarten", "pub")) %>%
+  osmdata_sf()
+bar <-
+  bar$osm_points %>%
+  .[districts,]
+
+# Restaurants
+restaurant <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'amenity', value = c("restaurant", "cafe")) %>%
+  osmdata_sf()
+restaurant <-
+  restaurant$osm_points %>%
+  .[districts,]
+
+ggplot() +
+  geom_sf(data=districts, fill="black") +
+  geom_sf(data=restaurant, colour="blue", size=.75) +
+  geom_sf(data=bar, colour="red", size=.75)
+
+## Universities
+university <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'amenity', value = c("university", "college")) %>%
+  osmdata_sf()
+university <-
+  university$osm_points %>%
+  .[districts,]
+
+ggplot() +
+  geom_sf(data=districts, fill="black") +
+  geom_sf(data=university, colour="blue", size=.75) 
+
+## Schools
+schools <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'amenity', value = c("school")) %>%
+  osmdata_sf()
+schools <-
+  schools$osm_points %>%
+  .[districts,]
+
+## land use - retail
+retail <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'landuse', value = c("retail")) %>%
+  osmdata_sf()
+retail <-
+  retail$osm_points %>%
+  .[districts,]
+
+## stadiums/sports centers
+stadiums <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'leisure', value = c("stadium")) %>%
+  osmdata_sf()
+stadiums <-
+  stadiums$osm_points %>%
+  .[districts,]
+
+## Parks
+parks_osm <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'leisure', value = c("park")) %>%
+  osmdata_sf()
+parks_osm <-
+  parks_osm$osm_points %>%
+  .[districts,]
+
+## industrial buildings
+industrial <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
+  add_osm_feature(key = 'building', value = c("industrial")) %>%
+  osmdata_sf()
+industrial <-
+  industrial$osm_points %>%
+  .[districts,]
+
+## we can use this for maps for the presentation if we would like
+ggplot() +
+  geom_sf(data=districts, fill="black") +
+  geom_sf(data=parks, colour="blue", size=.75) 
+
+```
 
 ```{r install-mapboxapi, eval = FALSE}
 #######################
@@ -321,7 +408,6 @@ mapbox_map %>%
 ``` {r}
 
 #Double checking how it looks with Mapview - CAN DELETE
-
 mapview(districts.sf)
 ```
 
@@ -371,7 +457,6 @@ listings.sf$City_Center <- ifelse(listings.sf$City_Center == "TRUE", 1, 0)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-
 #Airbnb provides entire home to tenant
 entirehomelist <- list("Entire home/apt"
                         )
@@ -393,7 +478,7 @@ metro_stops.sf <- st_join(metro_stops.sf, districts.sf, join = st_intersects, le
 listings.sf <-
   listings.sf %>%
   mutate(
-    metrostops_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_stops.sf)), 1))
+    metrostops_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_stops.sf)), 2))
 
 ## Metro Lines
 metro_lines.sf <- metro_lines%>%
@@ -483,11 +568,79 @@ listings.sf <-
   listings.sf %>%
   mutate(
     monuments_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(monuments.sf)), 3))
+
+## Bars
+bar.sf <- bar %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+bar.sf <- st_join(bar.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    bar_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(bar.sf)), 2))
+
+## Restaurants
+restaurant.sf <- restaurant %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+restaurant.sf <- st_join(restaurant.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    restaurant_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(restaurant.sf)), 3))
+
+## University
+university.sf <- university %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+university.sf <- st_join(university.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    university_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(university.sf)), 1))
+
+## Schools
+schools.sf <- schools %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+schools.sf <- st_join(schools.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    schools_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(schools.sf)), 2))
+
+## Retail
+retail.sf <- retail %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+retail.sf <- st_join(retail.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    retail_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(retail.sf)), 3))
+
+## Industrial
+industrial.sf <- industrial %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+industrial.sf <- st_join(industrial.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings.sf <-
+  listings.sf %>%
+  mutate(
+    industrial_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(industrial.sf)), 1))
+
+## bar, restaurant, parks_osm, stadiums, university, schools, retail, industrial
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
-                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3))
+                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1))
 
 summary(reg1)
 ```
