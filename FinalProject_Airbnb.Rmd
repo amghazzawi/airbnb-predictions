@@ -642,20 +642,22 @@ listings.sf <-
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
+listings.sf <- subset(listings.sf, price > 0)
+
+
 reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
                                  dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
 
 summary(reg1)
 ```
 
-
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Subset listings dataframe into all homes with listed sale prices
 rents <- subset(listings.sf, price > 0)
 
 #Setting up test and training datasets
-inTrain <- createDataPartition( 
-  y = paste(listings.sf$neighbourhood), 
+inTrain <- caret::createDataPartition( 
+  y = rents$price, 
   p = .70, list = FALSE)
 
 rents.training <- rents[inTrain,] 
@@ -663,7 +665,7 @@ rents.test <- rents[-inTrain,]
 
 #Multivariate regression
 reg.training <- lm(price ~ ., data = st_drop_geometry(rents.training) %>% 
-             dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3))
+             dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
 
 stargazer(
   reg.training,
@@ -673,4 +675,90 @@ stargazer(
   dep.var.labels = "Model Features")
 ```
 
+```{r message=FALSE, warning=FALSE}
+rents.test <-
+  rents.test %>%
+  mutate(Regression = "Baseline Regression",
+         price.Predict = predict(reg1, rents.test),
+         price.Error = price.Predict - price,
+         price.AbsError = abs(price.Predict - price),
+         price.APE = (abs(price.Predict - price)) / price.Predict)
 
+ErrorTable <- 
+  rents.test %>% 
+  dplyr::summarize(Regression = "Baseline Regression",
+                   MAE = mean(price.AbsError, na.rm = T), 
+                   MAPE = mean(price.AbsError, na.rm = T) / mean(price, na.rm = T)) 
+
+ErrorTable %>% 
+  st_drop_geometry %>%
+  group_by(Regression) %>%
+  arrange(desc(MAE)) %>% 
+  kable(caption = "MAE and MAPE for Test Set Data") %>% kable_styling()
+```
+
+### Cross-validation
+The plots below indicate how well our model is predicting home prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted home sale values match those of the actual values. As seen in the bottom right scatterplot, we are almost perfectly predicting home sale prices in accordance with their actual values in our training data. In our testing data, our model slightly over-predicts home prices, but fits fairly close to the line.
+
+```{r fig.height=10, fig.width=30, message=FALSE, warning=FALSE}
+reg1_predict <- predict(reg.training, newdata = rents.test)
+
+rmse.train <- caret::MAE(predict(reg.training), rents.training$price)
+rmse.test <- caret::MAE(reg1_predict, rents.test$price)
+
+preds.train <- data.frame(pred   = predict(reg.training),
+                          actual = rents.training$price,
+                          source = "training data")
+preds.test  <- data.frame(pred   = reg1_predict,
+                          actual = rents.test$price,
+                          source = "testing data")
+
+preds <- rbind(preds.train, preds.test)
+
+
+
+ggplot(preds, aes(x = pred, y = actual, color = source)) +
+  geom_point() +
+  geom_smooth(method = "lm", color = "green") +
+  geom_abline(color = "orange") +
+  coord_equal() +
+  theme_bw() +
+  facet_wrap(~source, ncol = 2) +
+  labs(title = "Comparing predictions to actual values",
+       x = "Predicted Value",
+       y = "Actual Value",
+       subtitle = "Figure 5.1") +
+  theme(
+    legend.position = "none"
+  )
+```
+
+### Generalizability
+We then looked to test the generalizability of our model using a cross-validation test. In this analysis, we split our data into 100 groups - one group acts as the test set with the remaining 99 groups acting as the training set. This process is repeated for each individual group, resulting in 100 "scores" telling us how well our model predicted for each sample of new data. 
+
+Our average MAE of **$329,389.5** is similar to the MAE of our initial test, but our standard deviation of **$67,279.99** suggests there's significant variation across our 100 groups. The histogram in Figure 5.2 below confirms the variation showing a wide distribution of errors. This indicates that our model requires continued refinement in order for it to be generalizable to new housing sale price data.
+```{r message=FALSE, warning=FALSE}
+fitControl <- trainControl(method = "cv", 
+                           number = 100,
+                           savePredictions = TRUE)
+
+set.seed(717)
+reg1.cv <- 
+  train(price ~ ., data = st_drop_geometry(rents) %>% 
+          dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury), 
+        method = "lm", 
+        trControl = fitControl, 
+        na.action = na.pass)
+
+reg1.cv 
+
+#Standard Deviation and Histogram of MAE
+reg1.cv.resample <- reg1.cv$resample
+
+sd(reg1.cv.resample$MAE)
+
+ggplot(reg1.cv.resample, aes(x=MAE)) + geom_histogram(color = "grey40", fill = "#27fdf5", bins = 50) + 
+  labs(title="Histogram of Mean Average Error Across 100 Folds",
+       subtitle = "Figure 5.2") +
+  plotTheme()
+```
