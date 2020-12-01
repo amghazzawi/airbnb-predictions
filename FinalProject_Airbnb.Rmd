@@ -463,7 +463,10 @@ entirehomelist <- list("Entire home/apt"
 listings.sf <- listings.sf %>%
   mutate(Entire_Home = room_type %in% entirehomelist)
 listings.sf$Entire_Home <- ifelse(listings.sf$Entire_Home == "TRUE", 1, 0)
+```
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+listings.sf$luxury <- ifelse(grepl("Luxury", listings.sf$name), "yes", "no")
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -640,7 +643,7 @@ listings.sf <-
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
-                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1))
+                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
 
 summary(reg1)
 ```
