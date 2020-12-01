@@ -82,8 +82,9 @@ plotTheme <- function(base_size = 12) {
   )
 }
 
-palette5 <- c("#FFF717", "#E8BC1C", "#FFAE2B",   "#E86E23", "#FF5940")
-palette4 <- c( "#53AAEE", "#438AC3", "#306490" , "#1F4363", "#16314B")
+palettemain <- c("#72b7cd","#cde1b1","#bdc2ab","#cab388","#c3904d","#ff5a5f")
+paletteblues <- c( "#7fc3dc","#72b7cd","#2f8caa","#1a81a2","#037499")
+paletteorngs <- c("#ceeece","#ebe3a3","#f6cb92","#f6c192","#f6b492") 
                
 
 #Set up quintile breaks for map legends
@@ -189,10 +190,10 @@ listings.sf  <- listings %>%
 # Neighborhood Plot
 ######################
 ggplot() +
-  geom_sf(data = neighborhoods.sf, fill = "grey60") +
+  geom_sf(data = neighborhoods.sf, fill = "#2f4550") + 
   geom_sf(data = listings.sf, aes(colour = q5(price)), 
           show.legend = "point", size = .75) +
-  scale_colour_manual(values = palette5,
+  scale_colour_manual(values = paletteorngs,
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
@@ -217,7 +218,7 @@ ggplot() +
   geom_sf(data = districts.sf, fill = "black") +
   geom_sf(data = listings.sf, aes(colour = q5(price)), 
           show.legend = "point", size = .75) +
-  scale_colour_manual(values = palette4,
+  scale_colour_manual(values = palettemain,
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
@@ -241,7 +242,7 @@ ggplot() +
   geom_sf(data = zipcode.sf, fill = "grey50") +
   geom_sf(data = listings.sf, aes(colour = q5(price)), 
           show.legend = "point", size = .75) +
-  scale_colour_manual(values = palette4,
+  scale_colour_manual(values = paletteblues,
                       labels = qBr(listings.sf, "price"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
@@ -274,9 +275,12 @@ restaurant <-
 
 ggplot() +
   geom_sf(data=districts, fill="black") +
-  geom_sf(data=restaurant, colour="blue", size=.75) +
-  geom_sf(data=bar, colour="red", size=.75)
+  geom_sf(data=restaurant, colour="#72b7cd", size=.75) +
+  geom_sf(data=bar, colour="#ff5a5f", size=.75)
 
+# palettemain <- c("#72b7cd","#cde1b1","#bdc2ab","#cab388","#c3904d","#ff5a5f")
+# paletteblues <- c( "#7fc3dc","#72b7cd","#2f8caa","#1a81a2","#037499")
+# paletteorngs <- c("#ceeece","#ebe3a3","#f6cb92","#f6c192","#f6b492")
 ## Universities
 university <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
   add_osm_feature(key = 'amenity', value = c("university", "college")) %>%
@@ -466,7 +470,18 @@ listings.sf$Entire_Home <- ifelse(listings.sf$Entire_Home == "TRUE", 1, 0)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-listings.sf$luxury <- ifelse(grepl("Luxury", listings.sf$name), "yes", "no")
+listings.sf$luxury <- ifelse(grepl("luxur",  ignore.case=TRUE, listings.sf$name), "yes", "no") 
+
+listings.sf$canal <- ifelse(grepl("canal", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+
+listings.sf$expamen <- ifelse(grepl("view|terrace|spac|rooftop|loft|roof", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+
+listings.sf$expcodes <- ifelse(grepl("family|big|light|heart|large|design|pijp|jordaan", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+
+listings.sf$citycenterdesc <- ifelse(grepl("center|centre",ignore.case=TRUE, listings.sf$name), "yes", "no") 
+
+listings.sf$cheapcodes <- ifelse(grepl("cozy|cosy|free|room|little|bed|garden|vondelpark", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+  
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -641,14 +656,39 @@ listings.sf <-
 ## bar, restaurant, parks_osm, stadiums, university, schools, retail, industrial
 ```
 
+
+``` {r k near price lag}
+
+
+k_nearest_neighbors = 3
+#prices
+coords <- st_coordinates(listings.sf) 
+# k nearest neighbors
+neighborList <- knn2nb(knearneigh(coords, k_nearest_neighbors))
+spatialWeights <- nb2listw(neighborList, style="W")
+listings.sf$lagPrice <- lag.listw(spatialWeights, listings.sf$price)
+```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 listings.sf <- subset(listings.sf, price > 0)
 
 
 reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
-                                 dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
+                                 dplyr::select(price, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
 
 summary(reg1)
+```
+
+
+```{r model reg testing}
+#DK Playing with regression after new feature engineering. 
+
+reg2 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
+                                 dplyr::select(price, neighbourhood, room_type, minimum_nights, number_of_reviews, reviews_per_month, calculated_host_listings_count, availability_365, City_Center, citycenterdesc, Entire_Home, luxury, canal, expamen, expcodes, cheapcodes, metrostops_nn2, metrolines_nn3,swim_nn1, wallart_nn3, markets_nn1, playgrounds_nn2, students_nn2, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1,lagPrice))
+           
+
+
+summ(reg2)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
