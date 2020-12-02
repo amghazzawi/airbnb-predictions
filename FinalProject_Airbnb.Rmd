@@ -126,6 +126,10 @@ nn_function <- function(measureFrom,measureTo,k) {
 # Data Loading Part 1 
 ######################
 listings <- read_csv("listings.csv")
+listings_details <- read_csv("listings_details.csv")
+listings_details$price2 = as.numeric(gsub("\\$", "", listings_details$price))
+
+neighborhoods_new <- st_read("neighbourhoods.geojson")
 
 districts <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLAAG=GEBIED_STADSDELEN&THEMA=gebiedsindeling") 
 
@@ -182,19 +186,29 @@ neighborhoods.sf <- neighborhoods %>%
   st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
   st_transform('EPSG:28992')
 
+neighborhoods_new.sf <- neighborhoods_new %>%
+  st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
+  st_transform('EPSG:28992')
+
 listings.sf  <- listings %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
   st_transform(st_crs(neighborhoods.sf))
+
+listings_details.sf  <- listings_details %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
+  st_transform(st_crs(neighborhoods.sf))
+
+listings_details.sf$price2 = as.numeric(gsub("\\$", "", listings_details.sf$price))
 
 #######################
 # Neighborhood Plot
 ######################
 ggplot() +
-  geom_sf(data = neighborhoods.sf, fill = "#2f4550") + 
-  geom_sf(data = listings.sf, aes(colour = q5(price)), 
+  geom_sf(data = neighborhoods_new.sf, fill = "#2f4550") + 
+  geom_sf(data = listings_details.sf, aes(colour = q5(price2)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = paletteorngs,
-                      labels = qBr(listings.sf, "price"),
+                      labels = qBr(listings_details.sf, "price2"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
        subtitle = "Figure 1") +
@@ -210,20 +224,21 @@ districts.sf <- districts %>%
   st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
   st_transform('EPSG:28992')
 
-listings.sf  <- listings %>% 
+listings_details.sf  <- listings_details.sf %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
   st_transform(st_crs(districts.sf))
 
 ggplot() +
   geom_sf(data = districts.sf, fill = "black") +
-  geom_sf(data = listings.sf, aes(colour = q5(price)), 
+  geom_sf(data = listings_details.sf, aes(colour = q5(price2)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = palettemain,
-                      labels = qBr(listings.sf, "price"),
+                      labels = qBr(listings_details.sf, "price2"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
        subtitle = "Figure 2") +
   mapTheme()
+
 ```
 
 ``` {r}
@@ -234,16 +249,16 @@ zipcode.sf <- zipcode4 %>%
   st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
   st_transform('EPSG:28992')
 
-listings.sf  <- listings %>% 
+listings_details.sf  <- listings_details.sf %>% 
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326, agr = "constant") %>%
   st_transform(st_crs(zipcode.sf))
 
 ggplot() +
   geom_sf(data = zipcode.sf, fill = "grey50") +
-  geom_sf(data = listings.sf, aes(colour = q5(price)), 
+  geom_sf(data = listings_details.sf, aes(colour = q5(price2)), 
           show.legend = "point", size = .75) +
   scale_colour_manual(values = paletteblues,
-                      labels = qBr(listings.sf, "price"),
+                      labels = qBr(listings_details.sf, "price2"),
                       name = "Nightly Airbnb Price\n(Quintile Breaks)") +
   labs(title="Nightly Airbnb Price, Amsterdam",
        subtitle = "Figure 3") +
@@ -417,10 +432,10 @@ mapview(districts.sf)
 
 
 ```{r echo=FALSE, fig.height=7, fig.width=7, message=FALSE, warning=FALSE}
-listings %>% 
-  dplyr::select(price, neighbourhood, room_type) %>%
-  gather(Variable, Value, -price) %>% 
-   ggplot(aes(Value, price)) +
+listings_details %>% 
+  dplyr::select(price2, neighbourhood, property_type, room_type) %>%
+  gather(Variable, Value, -price2) %>% 
+   ggplot(aes(Value, price2)) +
      geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
      facet_wrap(~Variable, ncol = 1, scales = "free") +
      labs(title = "Price as a function of\ncategorical variables", y = "Mean_Price") +
@@ -430,7 +445,7 @@ listings %>%
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 numericVars <- 
-  select_if(st_drop_geometry(listings.sf), is.numeric) %>% na.omit()
+  select_if(st_drop_geometry(listings_details.sf), is.numeric) %>% na.omit()
 
 ggcorrplot(
   round(cor(numericVars), 1), 
@@ -443,44 +458,44 @@ ggcorrplot(
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 avgneighb_price <- 
-  listings.sf %>% group_by(neighbourhood) %>% summarise(meanprice = mean(price))
+  listings_details.sf %>% group_by(neighbourhood) %>% summarise(meanprice = mean(price2))
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Airbnb located in city center neighborhoods
-citycenterlist <- list("Centrum-Oost",
-                        "Centrum-West",
-                       "Zuid",
-                       "IJburg - Zeeburgereiland",
-                       "Oud-Noord",
-                       "De Pijp - Rivierenbuurt"
-                        )
-listings.sf <- listings.sf %>%
-  mutate(City_Center = neighbourhood %in% citycenterlist)
-listings.sf$City_Center <- ifelse(listings.sf$City_Center == "TRUE", 1, 0)
+# citycenterlist <- list("Centrum-Oost",
+                       # "Centrum-West",
+                      # "Zuid",
+                      # "IJburg - Zeeburgereiland",
+                      # "Oud-Noord",
+                       #"De Pijp - Rivierenbuurt"
+                      #  )
+#listings.sf <- listings.sf %>%
+ # mutate(City_Center = neighbourhood %in% citycenterlist)
+#listings.sf$City_Center <- ifelse(listings.sf$City_Center == "TRUE", 1, 0)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Airbnb provides entire home to tenant
 entirehomelist <- list("Entire home/apt"
                         )
-listings.sf <- listings.sf %>%
+listings_details.sf <- listings_details.sf %>%
   mutate(Entire_Home = room_type %in% entirehomelist)
-listings.sf$Entire_Home <- ifelse(listings.sf$Entire_Home == "TRUE", 1, 0)
+listings_details.sf$Entire_Home <- ifelse(listings_details.sf$Entire_Home == "TRUE", 1, 0)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-listings.sf$luxury <- ifelse(grepl("luxur",  ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$luxury <- ifelse(grepl("luxur",  ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
-listings.sf$canal <- ifelse(grepl("canal", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$canal <- ifelse(grepl("canal", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
-listings.sf$expamen <- ifelse(grepl("view|terrace|spac|rooftop|loft|roof", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$expamen <- ifelse(grepl("view|terrace|spac|rooftop|loft|roof", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
-listings.sf$expcodes <- ifelse(grepl("family|big|light|heart|large|design|pijp|jordaan", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$expcodes <- ifelse(grepl("family|big|light|heart|large|design|pijp|jordaan", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
-listings.sf$citycenterdesc <- ifelse(grepl("center|centre",ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$citycenterdesc <- ifelse(grepl("center|centre",ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
-listings.sf$cheapcodes <- ifelse(grepl("cozy|cosy|free|room|little|bed|garden|vondelpark", ignore.case=TRUE, listings.sf$name), "yes", "no") 
+listings_details.sf$cheapcodes <- ifelse(grepl("cozy|cosy|free|room|little|bed|garden|vondelpark", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
   
 ```
 
@@ -493,10 +508,10 @@ metro_stops.sf <- metro_stops%>%
   st_as_sf()
 metro_stops.sf <- st_join(metro_stops.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    metrostops_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_stops.sf)), 2))
+    metrostops_nn2 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(metro_stops.sf)), 2))
 
 ## Metro Lines
 metro_lines.sf <- metro_lines%>%
@@ -504,10 +519,10 @@ metro_lines.sf <- metro_lines%>%
   st_as_sf()
 metro_stops.sf <- st_join(metro_lines.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    metrolines_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(metro_lines.sf)), 3))
+    metrolines_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(metro_lines.sf)), 3))
 
 ## Swimming Areas
 swim.sf <- swim%>%
@@ -515,10 +530,10 @@ swim.sf <- swim%>%
   st_as_sf()
 swim.sf <- st_join(swim.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    swim_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(swim.sf)), 1))
+    swim_nn1 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(swim.sf)), 1))
 
 
 ## Wall Art
@@ -527,10 +542,10 @@ wall_art.sf <- wall_art%>%
   st_as_sf()
 metro_stops.sf <- st_join(wall_art.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    wallart_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(wall_art.sf)), 1))
+    wallart_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(wall_art.sf)), 1))
 
 ## Markets
 markets.sf <- markets%>%
@@ -538,10 +553,10 @@ markets.sf <- markets%>%
   st_as_sf()
 markets.sf <- st_join(markets.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    markets_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(markets.sf)), 1))
+    markets_nn1 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(markets.sf)), 1))
 
 ## Playgrounds
 playgrounds.sf <- playgrounds %>%
@@ -549,10 +564,10 @@ playgrounds.sf <- playgrounds %>%
   st_as_sf()
 playgrounds.sf <- st_join(playgrounds.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    playgrounds_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(playgrounds.sf)), 2))
+    playgrounds_nn2 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(playgrounds.sf)), 2))
 
 ## Student Housing
 students.sf <- student_housing %>%
@@ -560,10 +575,10 @@ students.sf <- student_housing %>%
   st_as_sf()
 students.sf <- st_join(students.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    students_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(students.sf)), 2))
+    students_nn2 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(students.sf)), 2))
 
 ## Historic buildings
 hist_build.sf <- hist_build %>%
@@ -571,10 +586,10 @@ hist_build.sf <- hist_build %>%
   st_as_sf()
 hist_build.sf <- st_join(hist_build.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    histbuild_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(hist_build.sf)), 3))
+    histbuild_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(hist_build.sf)), 3))
 
 ## Monumuments
 monuments.sf <- monuments %>%
@@ -582,10 +597,10 @@ monuments.sf <- monuments %>%
   st_as_sf()
 monuments.sf <- st_join(monuments.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    monuments_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(monuments.sf)), 3))
+    monuments_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(monuments.sf)), 3))
 
 ## Bars
 bar.sf <- bar %>%
@@ -593,10 +608,10 @@ bar.sf <- bar %>%
   st_as_sf()
 bar.sf <- st_join(bar.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    bar_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(bar.sf)), 2))
+    bar_nn2 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(bar.sf)), 2))
 
 ## Restaurants
 restaurant.sf <- restaurant %>%
@@ -604,10 +619,10 @@ restaurant.sf <- restaurant %>%
   st_as_sf()
 restaurant.sf <- st_join(restaurant.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    restaurant_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(restaurant.sf)), 3))
+    restaurant_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(restaurant.sf)), 3))
 
 ## University
 university.sf <- university %>%
@@ -615,10 +630,10 @@ university.sf <- university %>%
   st_as_sf()
 university.sf <- st_join(university.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    university_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(university.sf)), 1))
+    university_nn1 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(university.sf)), 1))
 
 ## Schools
 schools.sf <- schools %>%
@@ -626,10 +641,10 @@ schools.sf <- schools %>%
   st_as_sf()
 schools.sf <- st_join(schools.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    schools_nn2 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(schools.sf)), 2))
+    schools_nn2 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(schools.sf)), 2))
 
 ## Retail
 retail.sf <- retail %>%
@@ -637,10 +652,10 @@ retail.sf <- retail %>%
   st_as_sf()
 retail.sf <- st_join(retail.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    retail_nn3 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(retail.sf)), 3))
+    retail_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(retail.sf)), 3))
 
 ## Industrial
 industrial.sf <- industrial %>%
@@ -648,33 +663,39 @@ industrial.sf <- industrial %>%
   st_as_sf()
 industrial.sf <- st_join(industrial.sf, districts.sf, join = st_intersects, left = FALSE)
 
-listings.sf <-
-  listings.sf %>%
+listings_details.sf <-
+  listings_details.sf %>%
   mutate(
-    industrial_nn1 = nn_function(st_c(st_centroid(listings.sf)), st_c(st_centroid(industrial.sf)), 1))
+    industrial_nn1 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(industrial.sf)), 1))
 
 ## bar, restaurant, parks_osm, stadiums, university, schools, retail, industrial
 ```
 
 
 ``` {r k near price lag}
+listings_details.sf <- subset(listings_details.sf, price2 > 0)
+listings_details.sf <- subset(listings_details.sf, property_type != "Lighthouse")
+listings_details.sf <- subset(listings_details.sf, property_type != "Earth house")
+
+listings_details.sf = filter(listings_details.sf, 
+                               property_type != "Lighthouse" & 
+                               property_type != "Earth House" & 
+                               property_type != "Nature lodge" & 
+                               property_type != "Castle")
 
 
 k_nearest_neighbors = 3
 #prices
-coords <- st_coordinates(listings.sf) 
+coords <- st_coordinates(listings_details.sf) 
 # k nearest neighbors
 neighborList <- knn2nb(knearneigh(coords, k_nearest_neighbors))
 spatialWeights <- nb2listw(neighborList, style="W")
-listings.sf$lagPrice <- lag.listw(spatialWeights, listings.sf$price)
+listings_details.sf$lagPrice <- lag.listw(spatialWeights, listings_details.sf$price2)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-listings.sf <- subset(listings.sf, price > 0)
-
-
-reg1 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
-                                 dplyr::select(price, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
+reg1 <- lm(price2 ~ ., data = st_drop_geometry(listings_details.sf) %>% 
+                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice))
 
 summary(reg1)
 ```
@@ -693,19 +714,19 @@ summ(reg2)
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Subset listings dataframe into all homes with listed sale prices
-rents <- subset(listings.sf, price > 0)
+rents <- subset(listings_details.sf, price2 > 0)
 
 #Setting up test and training datasets
 inTrain <- caret::createDataPartition( 
-  y = rents$price, 
+  y = rents$price2, 
   p = .70, list = FALSE)
 
 rents.training <- rents[inTrain,] 
 rents.test <- rents[-inTrain,]  
 
 #Multivariate regression
-reg.training <- lm(price ~ ., data = st_drop_geometry(rents.training) %>% 
-             dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury))
+reg.training <- lm(price2 ~ ., data = st_drop_geometry(rents.training) %>% 
+             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice))
 
 stargazer(
   reg.training,
@@ -719,16 +740,16 @@ stargazer(
 rents.test <-
   rents.test %>%
   mutate(Regression = "Baseline Regression",
-         price.Predict = predict(reg1, rents.test),
-         price.Error = price.Predict - price,
-         price.AbsError = abs(price.Predict - price),
-         price.APE = (abs(price.Predict - price)) / price.Predict)
+         price2.Predict = predict(reg1, rents.test),
+         price2.Error = price2.Predict - price2,
+         price2.AbsError = abs(price2.Predict - price2),
+         price2.APE = (abs(price2.Predict - price2)) / price2.Predict)
 
 ErrorTable <- 
   rents.test %>% 
   dplyr::summarize(Regression = "Baseline Regression",
-                   MAE = mean(price.AbsError, na.rm = T), 
-                   MAPE = mean(price.AbsError, na.rm = T) / mean(price, na.rm = T)) 
+                   MAE = mean(price2.AbsError, na.rm = T), 
+                   MAPE = mean(price2.AbsError, na.rm = T) / mean(price2, na.rm = T)) 
 
 ErrorTable %>% 
   st_drop_geometry %>%
@@ -743,19 +764,17 @@ The plots below indicate how well our model is predicting home prices in both ou
 ```{r fig.height=10, fig.width=30, message=FALSE, warning=FALSE}
 reg1_predict <- predict(reg.training, newdata = rents.test)
 
-rmse.train <- caret::MAE(predict(reg.training), rents.training$price)
-rmse.test <- caret::MAE(reg1_predict, rents.test$price)
+rmse.train <- caret::MAE(predict(reg.training), rents.training$price2)
+rmse.test <- caret::MAE(reg1_predict, rents.test$price2)
 
 preds.train <- data.frame(pred   = predict(reg.training),
-                          actual = rents.training$price,
+                          actual = rents.training$price2,
                           source = "training data")
 preds.test  <- data.frame(pred   = reg1_predict,
-                          actual = rents.test$price,
+                          actual = rents.test$price2,
                           source = "testing data")
 
 preds <- rbind(preds.train, preds.test)
-
-
 
 ggplot(preds, aes(x = pred, y = actual, color = source)) +
   geom_point() +
