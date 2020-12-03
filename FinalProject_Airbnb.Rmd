@@ -701,16 +701,7 @@ summary(reg1)
 ```
 
 
-```{r model reg testing}
-#DK Playing with regression after new feature engineering. 
-
-reg2 <- lm(price ~ ., data = st_drop_geometry(listings.sf) %>% 
-                                 dplyr::select(price, neighbourhood, room_type, minimum_nights, number_of_reviews, reviews_per_month, calculated_host_listings_count, availability_365, City_Center, citycenterdesc, Entire_Home, luxury, canal, expamen, expcodes, cheapcodes, metrostops_nn2, metrolines_nn3,swim_nn1, wallart_nn3, markets_nn1, playgrounds_nn2, students_nn2, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1,lagPrice))
-           
-
-
-summ(reg2)
-```
+`
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 #Subset listings dataframe into all homes with listed sale prices
@@ -755,8 +746,61 @@ ErrorTable %>%
   st_drop_geometry %>%
   group_by(Regression) %>%
   arrange(desc(MAE)) %>% 
-  kable(caption = "MAE and MAPE for Test Set Data") %>% kable_styling()
+  kable(caption = "MAE and MAPE for Test Set Data") %>% kable_styling("striped", full_width = F) %>%
+  row_spec(1, color = "black", background = "#ceeece")
 ```
+
+```{r correlation plots 1}
+
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, histbuild_nn3) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 1.5, color= "#72b7cd", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Price as a function of Average Distance to 
+Nearest Three Historical Buildings", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
+
+```{r correlation plots 2}
+
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, lagPrice) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 1.5,color= "#cde1b1", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
+
+```{r correlation plots 3}
+
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, room_type) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 3,color= "#72b7cd", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
 
 ### Cross-validation
 The plots below indicate how well our model is predicting home prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted home sale values match those of the actual values. As seen in the bottom right scatterplot, we are almost perfectly predicting home sale prices in accordance with their actual values in our training data. In our testing data, our model slightly over-predicts home prices, but fits fairly close to the line.
