@@ -765,7 +765,7 @@ st_drop_geometry(listings_details.sf) %>%
   ggplot(aes(Value, price2)) +
   geom_point(shape = 16, size = 4,color= "#f6c192", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
   facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
+  labs(title = "Price as a Function of Existence of Coded Language Affiliated with Cheap Properties", caption = "Figure 3") +
   plotTheme()
 
 
@@ -913,3 +913,21 @@ ggplot(reg1.cv.resample, aes(x=MAE)) + geom_histogram(color = "#ff5a5f", fill = 
        subtitle = "") +
   plotTheme()
 ```
+
+``` {r observed v predicted}
+
+preds %>%
+  dplyr::select(pred, actual) %>%
+  ggplot(aes(pred, actual)) +
+  geom_point(size = 1.5, color= "#ceeece") +
+  stat_smooth(aes(pred, actual), 
+              method = "lm", se = FALSE, size = 3, colour="#f6b492", alpha = 0.5) + 
+  stat_smooth(aes(actual, actual), 
+              method = "lm", se = FALSE, size = 1, colour="#037499", alpha = 0.5) +
+  labs(title="Predicted sale price as a function of observed price",
+       subtitle="Blue line represents a perfect prediction; Orange line represents ourprediction") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black")) 
+
+
+```
+
