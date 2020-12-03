@@ -293,10 +293,7 @@ ggplot() +
   geom_sf(data=restaurant, colour="#72b7cd", size=.75) +
   geom_sf(data=bar, colour="#ff5a5f", size=.75)
 
-# palettemain <- c("#72b7cd","#cde1b1","#bdc2ab","#cab388","#c3904d","#ff5a5f")
-# paletteblues <- c( "#7fc3dc","#72b7cd","#2f8caa","#1a81a2","#037499")
-# paletteorngs <- c("#ceeece","#ebe3a3","#f6cb92","#f6c192","#f6b492")
-## Universities
+
 university <- opq(bbox = c(xmin, ymin, xmax, ymax)) %>%
   add_osm_feature(key = 'amenity', value = c("university", "college")) %>%
   osmdata_sf()
@@ -432,21 +429,24 @@ mapview(districts.sf)
 
 
 ```{r echo=FALSE, fig.height=7, fig.width=7, message=FALSE, warning=FALSE}
+#taking out outlier property types
 listings_details = filter(listings_details, 
                                property_type != "Lighthouse" & 
                                property_type != "Earth House" & 
                                property_type != "Nature lodge" & 
                                property_type != "Castle" &
-                               property_type != "Tent")
+                               property_type != "Tent" &
+                               property_type != "Campsite")
 
 listings_details %>% 
   dplyr::select(price2, property_type, room_type) %>%
   gather(Variable, Value, -price2) %>% 
    ggplot(aes(Value, price2)) +
-     geom_bar(position = "dodge", stat = "summary", fun.y = "mean") +
+     geom_bar(position = "dodge", stat = "summary", fun.y = "mean", fill ="#7fc3dc", col="#1a81a2", alpha = 0.9 ) +
      facet_wrap(~Variable, ncol = 1, scales = "free") +
-     labs(title = "Price as a function of\ncategorical variables", y = "Mean_Price") +
+  labs(title = "Price as a function of\ncategorical variables", y = "Mean_Price") +
      plotTheme() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -455,12 +455,13 @@ Vars <- listings_details.sf %>%
                 accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice) %>%
   na.omit()
 
+
 Vars <- st_drop_geometry(Vars)
 
 ggcorrplot(
   round(cor(Vars), 1), 
   p.mat = cor_pmat(Vars),
-  colors = c("blue","white","red"), 
+  colors = c("#037499","light grey","#f6b492"), 
   type="lower",
   insig = "blank") +  
   labs(title = "Correlation across numeric variables",
@@ -706,6 +707,7 @@ listings_details.sf = filter(listings_details.sf,
                                property_type != "Earth House" & 
                                property_type != "Nature lodge" & 
                                property_type != "Castle" &
+                               property_type != "Tent" &
                                property_type != "Campsite")
 
 
@@ -718,9 +720,61 @@ spatialWeights <- nb2listw(neighborList, style="W")
 listings_details.sf$lagPrice <- lag.listw(spatialWeights, listings_details.sf$price2)
 ```
 
+
+
+```{r correlation plots 1}
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, histbuild_nn3) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 4, color= "#72b7cd", alpha = 0.7) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Price as a function of Average Distance to 
+Nearest Three Historical Buildings", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
+
+```{r correlation plots 2}
+
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, lagPrice) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 3,color= "#cde1b1", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 4, scales = "free") +
+  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
+
+```{r correlation plots 3}
+
+st_drop_geometry(listings_details.sf) %>% 
+  dplyr::select(price2, cheapcodes) %>%
+  filter(price2 <= 1000000) %>%
+  gather(Variable, Value, -price2) %>% 
+  ggplot(aes(Value, price2)) +
+  geom_point(shape = 16, size = 4,color= "#f6c192", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
+  facet_wrap(~Variable, ncol = 3, scales = "free") +
+  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
+  plotTheme()
+
+
+
+```
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 reg1 <- lm(price2 ~ ., data = st_drop_geometry(listings_details.sf) %>% 
-                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice))
+                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes ))
 
 summary(reg1)
 ```
@@ -729,22 +783,21 @@ summary(reg1)
 `
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-## KENS CHAPTER MESSING AROUND
-
-reg.vars <- c(property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice)
-
-regcv <- crossValidate(
-  dataset = rents.training,
-  id = "id",
-  dependentVariable = "price2",
-  indVariables = reg.vars) %>%
-    dplyr::select(cvID = cvID, countBurglaries, Prediction, geometry)
-
-#Subset listings dataframe into all homes with listed sale prices
+# Clean up of Rents Dataframe
 rents <- subset(listings_details.sf, price2 > 0)
+rents <- rents[,colSums(is.na(rents))<nrow(rents)]
+
+(rents <- dplyr::select (rents, price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes))
+
+rents<- na.omit(rents)
 
 
-#Setting up test and training datasets
+
+
+
+# Setting up test and training datasets
+set.seed(31357)
+
 inTrain <- caret::createDataPartition( 
   y = rents$price2, 
   p = .70, list = FALSE)
@@ -752,13 +805,13 @@ inTrain <- caret::createDataPartition(
 rents.training <- rents[inTrain,] 
 rents.test <- rents[-inTrain,]  
 
-rents.test <- predict(reg.training, newdata = rents.test, na.action = na.pass)
+# rents.test <- predict(reg.training, newdata = rents.test, na.action = na.pass)
 
 
 
 #Multivariate regression
 reg.training <- lm(price2 ~ ., data = st_drop_geometry(rents.training) %>% 
-             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice))
+             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes))
 
 stargazer(
   reg.training,
@@ -767,6 +820,8 @@ stargazer(
   dep.var.caption = " ",
   dep.var.labels = "Model Features")
 ```
+
+
 
 ```{r message=FALSE, warning=FALSE}
 rents.test <-
@@ -790,57 +845,6 @@ ErrorTable %>%
   kable(caption = "MAE and MAPE for Test Set Data") %>% kable_styling("striped", full_width = F) %>%
   row_spec(1, color = "black", background = "#ceeece")
 ```
-
-```{r correlation plots 1}
-st_drop_geometry(listings_details.sf) %>% 
-  dplyr::select(price2, histbuild_nn3) %>%
-  filter(price2 <= 1000000) %>%
-  gather(Variable, Value, -price2) %>% 
-  ggplot(aes(Value, price2)) +
-  geom_point(shape = 16, size = 1.5, color= "#72b7cd", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
-  facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Price as a function of Average Distance to 
-Nearest Three Historical Buildings", caption = "Figure 3") +
-  plotTheme()
-
-
-
-```
-
-
-```{r correlation plots 2}
-
-st_drop_geometry(listings_details.sf) %>% 
-  dplyr::select(price2, lagPrice) %>%
-  filter(price2 <= 1000000) %>%
-  gather(Variable, Value, -price2) %>% 
-  ggplot(aes(Value, price2)) +
-  geom_point(shape = 16, size = 1.5,color= "#cde1b1", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
-  facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
-  plotTheme()
-
-
-
-```
-
-
-```{r correlation plots 3}
-
-st_drop_geometry(listings_details.sf) %>% 
-  dplyr::select(price2, room_type) %>%
-  filter(price2 <= 1000000) %>%
-  gather(Variable, Value, -price2) %>% 
-  ggplot(aes(Value, price2)) +
-  geom_point(shape = 16, size = 3,color= "#72b7cd", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
-  facet_wrap(~Variable, ncol = 3, scales = "free") +
-  labs(title = "Price as a function of Nearest Three Rental Prices", caption = "Figure 3") +
-  plotTheme()
-
-
-
-```
-
 
 ### Cross-validation
 The plots below indicate how well our model is predicting home prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted home sale values match those of the actual values. As seen in the bottom right scatterplot, we are almost perfectly predicting home sale prices in accordance with their actual values in our training data. In our testing data, our model slightly over-predicts home prices, but fits fairly close to the line.
@@ -891,8 +895,8 @@ fitControl <- trainControl(method = "cv",
 
 set.seed(717)
 reg1.cv <- 
-  train(price ~ ., data = st_drop_geometry(rents) %>% 
-          dplyr::select(price, neighbourhood, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, bar_nn2, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury), 
+  train(price2 ~ ., data = st_drop_geometry(rents) %>% 
+          dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes), 
         method = "lm", 
         trControl = fitControl, 
         na.action = na.pass)
@@ -904,8 +908,8 @@ reg1.cv.resample <- reg1.cv$resample
 
 sd(reg1.cv.resample$MAE)
 
-ggplot(reg1.cv.resample, aes(x=MAE)) + geom_histogram(color = "grey40", fill = "#27fdf5", bins = 50) + 
+ggplot(reg1.cv.resample, aes(x=MAE)) + geom_histogram(color = "#ff5a5f", fill = "#f6c192", alpha = .7, bins = 50) + 
   labs(title="Histogram of Mean Average Error Across 100 Folds",
-       subtitle = "Figure 5.2") +
+       subtitle = "") +
   plotTheme()
 ```
