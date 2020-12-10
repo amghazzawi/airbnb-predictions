@@ -335,7 +335,6 @@ industrial <-
 ggplot() +
   geom_sf(data=districts, fill="black") +
   geom_sf(data=parks, colour="blue", size=.75) 
-
 ```
 
 # Feature Engineering 
@@ -581,12 +580,118 @@ spatialWeights <- nb2listw(neighborList, style="W")
 listings_details.sf$lagPrice <- lag.listw(spatialWeights, listings_details.sf$price2)
 ```
 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Create fishnet
+fishnet <- 
+  st_make_grid(neighborhoods_new.sf, cellsize = 200) %>%
+  st_sf() %>%
+  mutate(uniqueID = rownames(.))
+
+# Plot fishnet with density of rental properties
+ggplot() + 
+  geom_sf(data = neighborhoods_new.sf, fill = "grey40") +
+  stat_density2d(data = data.frame(st_coordinates(listings_details.sf)), 
+                 aes(X, Y, fill = ..level.., alpha = ..level..),
+                 size = 0.01, bins = 40, geom = 'polygon') +
+  scale_fill_viridis() +
+  scale_alpha(range = c(0.00, 0.35), guide = FALSE) +
+  labs(title = "Density of Rental Properties") +
+  mapTheme(title_size = 14) + theme(legend.position = "none")
+
+# Create fishnet with the average price of the rental properties located in each grid cell
+price_net <- 
+  dplyr::select(listings_details.sf) %>% 
+  mutate(price = listings_details.sf$price2) %>% 
+  aggregate(., fishnet, mean) %>%
+  mutate(price = replace_na(price, 0),
+         uniqueID = rownames(.),
+         cvID = sample(round(nrow(fishnet) / 24), size=nrow(fishnet), replace = TRUE))
+
+price_net <- subset(price_net, price > 0)
+
+ggplot() +
+  geom_sf(data=fishnet, fill = "grey40") +
+  geom_sf(data = price_net, aes(fill = price)) +
+  scale_fill_viridis() +
+  labs(title = "Average Rental Price for the fishnet") +
+  mapTheme()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Local Moran's I
+## Create neighbor list and spatial weights matrix
+final_net.nb <- poly2nb(as_Spatial(price_net), queen=TRUE)
+final_net.weights <- nb2listw(final_net.nb, style="W", zero.policy=TRUE)
+
+# Combining the price_net with localmoran test
+final_net.localMorans <- 
+  cbind(
+    as.data.frame(localmoran(price_net$price, final_net.weights)),
+    as.data.frame(price_net)) %>% 
+    st_sf() %>%
+      dplyr::select(Avg_Price = price, 
+                    Local_Morans_I = Ii, 
+                    P_Value = `Pr(z > 0)`) %>%
+      mutate(Significant_Hotspots = ifelse(P_Value <= 0.0000001, 1, 0)) %>%
+      gather(Variable, Value, -geometry)
+  
+vars <- unique(final_net.localMorans$Variable)
+varList <- list()
+
+for(i in vars){
+  varList[[i]] <- 
+    ggplot() +
+      geom_sf(data = fishnet, fill = "grey40") +
+      geom_sf(data = filter(final_net.localMorans, Variable == i), 
+              aes(fill = Value), colour=NA) +
+      scale_fill_viridis(name="") +
+      labs(title=i) +
+      mapTheme() + theme(legend.position="bottom")}
+
+do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Price"))
+
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sig_net <- 
+  dplyr::filter(final_net.localMorans, final_net.localMorans $ Variable == "Significant_Hotspots") 
+
+sig_net <-
+  dplyr::filter(sig_net, sig_net $ Value == 1)
+
+sig_net.sf <- sig_net %>%
+  st_as_sf(coords = "geometry", crs = 4326, agr = "constant") %>%
+  st_transform('EPSG:28992')
+
+listings_details.sf <-
+  listings_details.sf %>%
+  mutate(
+    sig_cell = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(sig_net.sf)), 1))
+
+
+###
+hist_build.sf <- hist_build %>%
+  st_transform(st_crs(districts.sf)) %>%
+  st_as_sf()
+hist_build.sf <- st_join(hist_build.sf, districts.sf, join = st_intersects, left = FALSE)
+
+listings_details.sf <-
+  listings_details.sf %>%
+  mutate(
+    histbuild_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(hist_build.sf)), 3))
+
+
+listings_details.sf <-
+  listings_details %>%
+    mutate(dist_sig = )
+```
+
 # Notable Variables
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 Vars <- listings_details.sf %>%
   dplyr::select(price2,
-                accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice) %>%
+                accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice, sig_cell) %>%
   na.omit()
 
 
@@ -648,7 +753,7 @@ st_drop_geometry(listings_details.sf) %>%
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 reg1 <- lm(price2 ~ ., data = st_drop_geometry(listings_details.sf) %>% 
-                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool ))
+                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell ))
 
 summary(reg1)
 ```
@@ -660,7 +765,7 @@ summary(reg1)
 rents <- subset(listings_details.sf, price2 > 0)
 rents <- rents[,colSums(is.na(rents))<nrow(rents)]
 
-(rents <- dplyr::select (rents, price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool))
+(rents <- dplyr::select (rents, price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool, sig_cell))
 
 rents<- na.omit(rents)
 
@@ -678,7 +783,7 @@ rents.test <- rents[-inTrain,]
 
 #Multivariate regression
 reg.training <- lm(price2 ~ ., data = st_drop_geometry(rents.training) %>% 
-             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool))
+             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool, sig_cell))
 
 stargazer(
   reg.training,
