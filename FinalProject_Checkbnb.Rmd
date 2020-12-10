@@ -648,7 +648,7 @@ final_net.localMorans <-
       dplyr::select(Avg_Price = price, 
                     Local_Morans_I = Ii, 
                     P_Value = `Pr(z > 0)`) %>%
-      mutate(Significant_Hotspots = ifelse(P_Value <= 0.0000001, 1, 0)) %>%
+      mutate(Significant_Hotspots = ifelse(P_Value <= 0.001, 1, 0)) %>%
       gather(Variable, Value, -geometry)
   
 vars <- unique(final_net.localMorans$Variable)
@@ -707,7 +707,7 @@ listings_details.sf <-
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 Vars <- listings_details.sf %>%
   dplyr::select(price2,
-                accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice, sig_cell) %>%
+                accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice, sig_cell, minimum_nights, students_nn2, wallart_nn3, schools_nn2, retail_nn3, industrial_nn1, lagPrice, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, guests_included) %>%
   na.omit()
 
 
