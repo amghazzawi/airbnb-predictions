@@ -383,6 +383,22 @@ listings_details.sf$citycenterdesc <- ifelse(grepl("center|centre",ignore.case=T
 listings_details.sf$cheapcodes <- ifelse(grepl("cozy|cosy|free|room|little|bed|garden|vondelpark", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
 listings_details.sf$pool <- ifelse(grepl("Pool", ignore.case=TRUE, listings_details.sf$amenities), "yes", "no")
+
+listings_details.sf$expamencat <- ifelse(grepl("friendly|detector|workspace|hot|water|parking|private|first|aid|greets|luggage|wide|kit|linens|dropoff|balcony|step-free|books|Wide|dryer|laptop|access|premises", ignore.case=TRUE, listings_details.sf$amenities), "yes", "no")
+
+
+listings_details.sf$expsummary <- ifelse(grepl("located|minutes|walk|bars|view|center|away|museum|tram", ignore.case=TRUE, listings_details.sf$summary), "yes", "no")
+
+
+listings_details.sf$expdescrip <- ifelse(grepl("kitchen|located|floor|garden|walk|large|double|open|centre|beautiful|center|terrace|fully|canal|big|shops|two|close|view|also|famous|bright|", ignore.case=TRUE, listings_details.sf$description), "yes", "no")
+
+
+listings_details.sf$expneighbdesc <- ifelse(grepl("walk|city| shops|bars|nice|just|museum|distance|close|min|Jordaan|best|local|Anne|popular|trendy|Gogh|Pijp|quiet|meters|right|one|park|Amstel|Cuyp", ignore.case=TRUE, listings_details.sf$summary), "yes", "no")
+
+listings_details.sf$expneighwoclou<- ifelse(grepl("Pijp|Plantage|Westelijke|Zeeburg|Zeeheldenbuurt|Lastage|Weesperbuurt|Oud-Zuid|", ignore.case=TRUE, listings_details.sf$summary), "yes", "no")
+
+
+
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -596,7 +612,7 @@ ggplot() +
   scale_fill_viridis() +
   scale_alpha(range = c(0.00, 0.35), guide = FALSE) +
   labs(title = "Density of Rental Properties") +
-  mapTheme(title_size = 14) + theme(legend.position = "none")
+  mapTheme() + theme(legend.position = "none")#title size 14 removed
 
 # Create fishnet with the average price of the rental properties located in each grid cell
 price_net <- 
@@ -681,9 +697,9 @@ listings_details.sf <-
     histbuild_nn3 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(hist_build.sf)), 3))
 
 
-listings_details.sf <-
-  listings_details %>%
-    mutate(dist_sig = )
+# listings_details.sf <-
+#   listings_details %>%
+#     mutate(dist_sig = ) #wasnt running
 ```
 
 # Notable Variables
@@ -753,7 +769,7 @@ st_drop_geometry(listings_details.sf) %>%
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 reg1 <- lm(price2 ~ ., data = st_drop_geometry(listings_details.sf) %>% 
-                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell ))
+                                 dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, expamencat, expsummary, expdescrip, expneighbdesc, expneighwoclou, guests_included, cancellation_policy))
 
 summary(reg1)
 ```
@@ -765,7 +781,7 @@ summary(reg1)
 rents <- subset(listings_details.sf, price2 > 0)
 rents <- rents[,colSums(is.na(rents))<nrow(rents)]
 
-(rents <- dplyr::select (rents, price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool, sig_cell))
+(rents <- dplyr::select (rents, price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, expamencat, expsummary, expdescrip, expneighbdesc, expneighwoclou, guests_included, cancellation_policy))
 
 rents<- na.omit(rents)
 
@@ -783,7 +799,7 @@ rents.test <- rents[-inTrain,]
 
 #Multivariate regression
 reg.training <- lm(price2 ~ ., data = st_drop_geometry(rents.training) %>% 
-             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes,citycenterdesc, cheapcodes, pool, sig_cell))
+             dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, metrolines_nn3, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, expamencat, expsummary, expdescrip, expneighbdesc, expneighwoclou, guests_included, cancellation_policy))
 
 stargazer(
   reg.training,
