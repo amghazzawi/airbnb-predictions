@@ -5,6 +5,10 @@ date: "12/15/2020"
 output: 
   html_document:
     code_folding: hide
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
 ---
 # The Motivation behind Checkbnb
 Under newfound regulatory guidelines in Amsterdam, the Airbnb market is increasingly challenging to navigate. As of July 2020, the City of Amsterdam outright banned Airbnbs in three of Amsterdam's city center neighborhoods, added limits to the number of nights that a host could rent out their property, limited the number of guests that a property can host, and enacted a permitting fee. Checkbnb, an affilate of Airbnb, allows prospective hosts to calculate the potential revenue of renting their property given the property's home specifications, listing details, and access to various amenities and disamenities in the surrounding area.  The provided model leverages existing Amsterdam Airbnb data from 2018 to inform and construct a model that generalizes to today's rental market. The model output, potential revenue, gives users an accurate understanding of the possible financial gains that can result from renting out their home on the Airbnb platform. Given the challenging regulatory landscape, Checkbnb seeks to simplify the decision-making process for perspective hosts through an easy-to-use platform and accurate model. 
@@ -39,6 +43,7 @@ library(rmarkdown)
 library(knitr)
 library(kableExtra)
 library(osmdata)
+library(pander)
 ```
 
 ```{r warning=FALSE, include=FALSE}
@@ -124,7 +129,7 @@ nn_function <- function(measureFrom,measureTo,k) {
 
 # Model Data
 The data used in our final Checkbnb model was sourced from Airbnb-provided data on 2018 listings in Amsterdam, open data provided by the City of Amsterdam, and Open Street Map (OSM) data that crowd-sources locations of various landmarks and amenities across the city. The Airbnb data consists of information on listing price, number of bedrooms and bathrooms, as well as other data on reviews and available amenities to home guests. The city's data includes information on locations of city-provided services and neighborhood features, as well as information on land use types. Lastly, the OSM data provides other locational data on city amenities and features.
-```{r, echo=FALSE,warning=FALSE,message=FALSE,error=FALSE, results='hide',fig.keep='all', results='asis'}
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results=FALSE}
 #######################
 # Data Loading Part 1 
 ######################
@@ -172,7 +177,7 @@ monuments <- read_sf("https://maps.amsterdam.nl/open_geodata/geojson.php?KAARTLA
 monuments <- monuments[monuments$Soort %in% c("Beeldhouwkunst", "Bouwwerk", "Bouwblok", "Park Terrein"), ] # removing historic homes from the dataset
 ```
 
-``` {r}
+``` {r, message=FALSE, warning=FALSE, results=FALSE}
 #Setting the bounding box to pull in OSM data
 xmin = st_bbox(districts)[[1]]
 ymin = st_bbox(districts)[[2]]
@@ -247,7 +252,7 @@ industrial <-
 Before engineering any additional features for our model, we reviewed data available from the Airbnb dataset. Figure 1 below maps the locations and prices of Amsterdam Airbnbs in 2018. With regard to the spatial process of rental price and number of Airbnbs, there's a higher concentration of Airbnb rentals in the more central part of the city, with fewer units extending outward. Higher prices are also more concentrated in the city center. 
 
 Figures 2 and 3 show some of the categorical and numerical features included in the Airbnb dataset and their relationship to price. We can see that, on average, price is higher when units have real beds and offer the entire home to the renter as opposed to a single bedroom. Some neighborhoods, including Buiksloterham located on the northern part of the canal, have higher prices on average and property types like serviced apartments and villas also attract higher priced rentals. The numerical features indicate a positive relationship between price and the number of beds, baths, the number of people the home can accommodate, and how often the home is available during the year.
-``` {r}
+``` {r, warning=FALSE, fig.align='center'}
 #######################
 # Neighborhood Plot
 ######################
@@ -269,7 +274,7 @@ ggplot() +
   mapTheme()
 ```
 
-```{r echo=FALSE, fig.height=15, fig.width=15, message=FALSE, warning=FALSE}
+```{r echo=TRUE, fig.height=20, fig.width=15, message=FALSE, warning=FALSE}
 #taking out outlier property types
 listings_details = filter(listings_details, 
                                property_type != "Lighthouse" & 
@@ -285,12 +290,16 @@ listings_details %>%
    ggplot(aes(Value, price2)) +
      geom_bar(position = "dodge", stat = "summary", fun.y = "mean", fill ="#7fc3dc", col="#1a81a2", alpha = 0.9 ) +
      facet_wrap(~Variable, ncol = 1, scales = "free") +
-  labs(title = "Price as a function of\ncategorical variables", y = "Mean_Price", subtitle = "Figure 2") +
-     plotTheme() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
+  labs(title = "Price as a function of categorical variables", y = "Mean Price", subtitle = "Figure 2") +
+     plotTheme() + theme(axis.text.x = element_text(angle = 45, size=20, hjust = 1),
+                         axis.text.y = element_text(size = 20),
+                         plot.title = element_text(size = 30),
+                         plot.subtitle = element_text(size = 20),
+                         axis.title.x = element_text(size = 20),
+                         axis.title.y = element_text(size = 20))
 ```
 
-```{r correlation plots, fig.height=5, fig.width=10}
+```{r, message=FALSE, warning=FALSE, fig.height=5, fig.width=10}
 st_drop_geometry(listings_details.sf) %>% 
   dplyr::select(price2, accommodates, bedrooms, bathrooms, availability_365) %>%
   filter(price2 <= 1000000) %>%
@@ -298,8 +307,11 @@ st_drop_geometry(listings_details.sf) %>%
   ggplot(aes(Value, price2)) +
   geom_point(shape = 16, size = 3,color= "#cde1b1", alpha = 0.5) + geom_smooth(method = "lm", se=F, colour = "#E86E23") +
   facet_wrap(~Variable, ncol = 4, scales = "free") +
-  labs(title = "Price as a function of Numerical Variables", caption = "Figure 3") +
-  plotTheme()
+  labs(title = "Price as a function of numerical variables", subtitle = "Figure 3") +
+  plotTheme() + theme(plot.title = element_text(size = 30),
+                      plot.subtitle = element_text(size = 20),
+                      axis.title.x = element_text(size = 20),
+                      axis.title.y = element_text(size = 20))
 ```
 
 
@@ -307,17 +319,10 @@ st_drop_geometry(listings_details.sf) %>%
 Apart from some of the features in the original Airbnb dataset, we engineered a series of variables for our final model with the goal of minimizing error in rental price. We wanted to ensure our model was both accurate and generalizable in predicting a range of property types and locations. 
 
 We engineered variables based on descriptions that Airbnb hosts have posted about their home and analyzed them to see if there were keywords associated with higher or lower prices. We leveraged the nearest neighbor method to look at access to various services and amenities in the city like swimming areas and markets. We calculated *lagPrice* for each listing, which is the average price of the three closest homes to each Airbnb, and *local Moran's I*, which provides distance to the closest highly significant cluser of high priced homes. 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-#Airbnb host provides entire home to tenant
-entirehomelist <- list("Entire home/apt"
-                        )
-listings_details.sf <- listings_details.sf %>%
-  mutate(Entire_Home = room_type %in% entirehomelist)
-listings_details.sf$Entire_Home <- ifelse(listings_details.sf$Entire_Home == "TRUE", 1, 0)
-```
 
-## Description Analysis
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+### *Description Analysis*
+We first analyzed the descriptions associated with each listing to determine key words associated with higher or lower prices. We in turn created dummy variables associated with different price points.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 listings_details.sf$luxury <- ifelse(grepl("luxur",  ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
 
 listings_details.sf$canal <- ifelse(grepl("canal", ignore.case=TRUE, listings_details.sf$name), "yes", "no") 
@@ -346,8 +351,9 @@ listings_details.sf$expneighbdesc <- ifelse(grepl("walk|city| shops|bars|nice|ju
 listings_details.sf$expneighwoclou<- ifelse(grepl("Pijp|Plantage|Westelijke|Zeeburg|Zeeheldenbuurt|Lastage|Weesperbuurt|Oud-Zuid|", ignore.case=TRUE, listings_details.sf$summary), "yes", "no")
 ```
 
-## Access to amenities and services
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+### *Access to amenities and services*
+For a series of variables from OSM and Amsterdam's open data portal, we calculated the nearest neighbor distance from each listing to the below (dis)amenities and services around the city.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 st_c <- st_coordinates
 
 ## Metro Stops
@@ -505,7 +511,8 @@ listings_details.sf <-
     industrial_nn1 = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(industrial.sf)), 1))
 ```
 
-## Average price of three closest rentals
+### *Average price of three closest rentals*
+We eliminated outlier property types and calculated the average price of the three closest rental properties for each listing.
 ``` {r k near price lag}
 listings_details.sf <- subset(listings_details.sf, price2 > 0)
 
@@ -530,9 +537,9 @@ spatialWeights <- nb2listw(neighborList, style="W")
 listings_details.sf$lagPrice <- lag.listw(spatialWeights, listings_details.sf$price2)
 ```
 
-## Local Moran's I
+### *Local Moran's I*
 Figure 4 shows more localized clustering of higher priced homes along to the canal as well as just north of the canal. Figure 5 identifies the significant hotspots of high-priced rentals, which we then transformed into polygons and calculated distance from each rental property to its closest significant fishnet cell.
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.align='center'}
 # Create fishnet
 fishnet <- 
   st_make_grid(neighborhoods_new.sf, cellsize = 200) %>%
@@ -557,8 +564,7 @@ ggplot() +
   labs(title = "Average Rental Price", subtitle = "Figure 4") +
   mapTheme()
 ```
-
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
 # Local Moran's I
 ## Create neighbor list and spatial weights matrix
 final_net.nb <- poly2nb(as_Spatial(price_net), queen=TRUE)
@@ -586,13 +592,13 @@ for(i in vars){
       geom_sf(data = filter(final_net.localMorans, Variable == i), 
               aes(fill = Value), colour=NA) +
       scale_fill_viridis(name="") +
-      labs(title=i) +
+      labs(title=i, subtitle = "Figure 5") +
       mapTheme() + theme(legend.position="bottom")}
 
-do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Price", bottom = "Figure 5"))
+do.call(grid.arrange,c(varList, ncol = 4, top = "Local Morans I statistics, Price"))
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 sig_net <- 
   dplyr::filter(final_net.localMorans, final_net.localMorans $ Variable == "Significant_Hotspots") 
 
@@ -609,9 +615,9 @@ listings_details.sf <-
     sig_cell = nn_function(st_c(st_centroid(listings_details.sf)), st_c(st_centroid(sig_net.sf)), 1))
 ```
 
-
-
-``` {r few extra variable manipulations}
+### *Transforming Variables*
+We manipulated three of our numerical variables and one categorical variables and transformed them to improve their predictive power in the model.
+``` {r, warning=FALSE, error=FALSE, message=FALSE}
 listings_details.sf <- 
   listings_details.sf %>% 
   mutate(size_of_group = 
@@ -633,14 +639,16 @@ listings_details.sf <-
                    sig_cell <= 1500 & (sig_cell) > 369  ~ "Semi-Hot",
                     sig_cell >= 1501 ~ "Hot Spot"))
 
-
-
-
-````
+entirehomelist <- list("Entire home/apt"
+                        )
+listings_details.sf <- listings_details.sf %>%
+  mutate(Entire_Home = room_type %in% entirehomelist)
+listings_details.sf$Entire_Home <- ifelse(listings_details.sf$Entire_Home == "TRUE", 1, 0)
+```
 
 # Notable Variables
 The correlation matrix below in Figure 6 shows the included numerical variables in our final model. These included a combination of the variables in the Airbnb dataset as well as the engineered features. Figure 7 looks at three of the significant engineered features, including average distance to the three nearest historical buildings, average price of three nearest rentals, and the existance of coded language affiliated with cheaper properties.
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, fig.height=30, fig.width=30, message=FALSE, warning=FALSE}
 Vars <- listings_details.sf %>%
   dplyr::select(price2,
                 accommodates, bathrooms, bedrooms, availability_365, number_of_reviews, review_scores_rating, markets_nn1, metrostops_nn2, playgrounds_nn2, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, retail_nn3, industrial_nn1, lagPrice, sig_cell, minimum_nights, students_nn2, wallart_nn3, schools_nn2, retail_nn3, industrial_nn1, lagPrice, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, guests_included) %>%
@@ -655,11 +663,14 @@ ggcorrplot(
   colors = c("#037499","light grey","#f6b492"), 
   type="lower",
   insig = "blank") +  
-  labs(title = "Correlation across numeric variables",
-       subtitle = "Figure 6") 
+  labs(title = "Correlation across numeric variables", subtitle = "Figure 6") +
+  plotTheme() + theme(axis.text.x = element_text(angle = 45, size=25, hjust = 1),
+                         axis.text.y = element_text(size = 25),
+                         plot.title = element_text(size = 30),
+                         plot.subtitle = element_text(size = 20))
 ```
 
-```{r correlation plots 1, fig.height=8, fig.width=15}
+```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=8, fig.width=15}
 Hist_build_plot <- st_drop_geometry(listings_details.sf) %>% 
   dplyr::select(price2, histbuild_nn3) %>%
   filter(price2 <= 1000000) %>%
@@ -692,18 +703,26 @@ grid.arrange(Hist_build_plot, lagPrice_plot, cheapcodes_plot, ncol=3, top = "Pri
 
 # The Checkbnb Model
 After engineering the features, our final model and list of variables can be seen below. We used a combination of categorical and numerical variables to build and hone our model in order to minimize error and ensure it generalizes to a wide set of rental property types and locations within the city. The R-squared value of 0.5 indicates that the model accounts for approximately 50% of variation in home price.
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
 listings_details.sf <- subset(listings_details.sf, price2 > 0)
 
 reg1 <- lm(price2 ~ ., data = st_drop_geometry(listings_details.sf) %>% 
                                  dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, expamencat, expsummary, expdescrip, expneighbdesc, expneighwoclou, guests_included, cancellation_policy, size_of_group, expneighbors,hotspotlevel))
 
-stargazer(
-  reg1,
-  type = "text",
-  title = "Linear Model Summary Table",
-  dep.var.caption = " ",
-  dep.var.labels = "Model Features")
+reg1.summary <- coef(summary(reg1))
+kable(reg1.summary,format = "html", caption = "Regression Results Summary") %>% 
+  kable_styling()
+
+#create output table of regression summary
+
+first_column <- c("R2", "Adjusted R2")
+second_column <- c("0.5063","0.5026")
+
+regression_stats <- data.frame(first_column, second_column)
+
+kable(regression_stats,format = "html", col.names = c('', '')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n")
 ```
 
 # Training and Testing our Model
@@ -732,18 +751,26 @@ rents.test <- rents[-inTrain,]
 reg.training <- lm(price2 ~ ., data = st_drop_geometry(rents.training) %>% 
              dplyr::select(price2, property_type, accommodates, bathrooms, bedrooms, neighbourhood, room_type, availability_365, number_of_reviews, minimum_nights, Entire_Home, markets_nn1, metrostops_nn2, students_nn2, wallart_nn3, playgrounds_nn2, histbuild_nn3, monuments_nn3, restaurant_nn3, university_nn1, schools_nn2, retail_nn3, industrial_nn1, luxury, lagPrice, canal, expamen, expcodes, citycenterdesc, cheapcodes, pool, sig_cell, beds, review_scores_accuracy, review_scores_cleanliness, review_scores_rating, review_scores_communication, review_scores_location, review_scores_value, reviews_per_month, expamencat, expsummary, expdescrip, expneighbdesc, expneighwoclou, guests_included, cancellation_policy, size_of_group, expneighbors,hotspotlevel))
 
-stargazer(
-  reg.training,
-  type = "text",
-  title = "Linear Model Summary Table",
-  dep.var.caption = " ",
-  dep.var.labels = "Model Features")
+reg.training.summary <- coef(summary(reg.training))
+kable(reg.training.summary,format = "html", caption = "Regression Results Summary") %>% 
+  kable_styling()
+
+#create output table of regression summary
+
+first_column <- c("R2", "Adjusted R2")
+second_column <- c("0.516","0.5109")
+
+regression_stats <- data.frame(first_column, second_column)
+
+kable(regression_stats,format = "html", col.names = c('', '')) %>% 
+  kable_styling() %>%
+  footnote(general_title = "\n")
 ```
 
 # Cross Validation
 This section looks at both model accuracy and generalizability. As this analysis will indicate, our predictions are useful in showing how well our model does in accurately predicting rental price in our test set. Our k-fold cross validation specifically addresses how accurately our model predicts on new data and generalizes across holdout test sets. In turn, understanding our model's accuracy and generalizability is critical to ensuring that Checkbnb users get an accurate predicted rental price no matter their home specifications or location.
 
-## Model Accuracy
+### *Model Accuracy*
 In the process of honinig and engineering new variables for our model, we continually improved it so as to, in part, increase accuracy.As shown in the table below, we calculated how well our final model predicts on the testing set, which indicates a mean absolute error (MAE) of **$38**. This indicates that on average, we are either under or over predicting rental prices by **$38**. The mean absolute percent error (MAPE) of our model is approximately 26%. 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 rents.test <-
@@ -769,7 +796,7 @@ ErrorTable %>%
 ```
 
 The plots below show how well our model is predicting rental prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted rent prices match those of the actual values. As seen in the bottom right scatterplot, we are almost perfectly predicting rental prices in accordance with their actual values in our training data. Our model does slightly underpredict on higher priced rentals in our testing data set.
-```{r fig.height=10, fig.width=30, message=FALSE, warning=FALSE}
+```{r fig.height=20, fig.width=20, message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
 reg.training_predict <- predict(reg.training, newdata = rents.test)
 
 rmse.train <- caret::MAE(predict(reg.training), rents.training$price2)
@@ -795,16 +822,17 @@ ggplot(preds, aes(x = pred, y = actual, color = source)) +
        x = "Predicted Value",
        y = "Actual Value",
        subtitle = "Figure 8") +
-  theme(
-    legend.position = "none"
+  theme(plot.title = element_text(size = 30),
+        plot.subtitle = element_text(size = 20),
+        axis.text.y = element_text(size = 20),
+        axis.text.x = element_text(size = 20),
+        axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25),
+        legend.position = "none"
   )
-
-cat("Train MAE: ", as.integer(rmse.train), " \n","Test MAE: ", as.integer(rmse.test))
-
-glimpse(rents)
 ```
 
-``` {r deciles}
+``` {r, message=FALSE, warning=FALSE, error=FALSE}
 preds %>%
     mutate(price_Decile = ntile(actual, 10)) %>%
   group_by( price_Decile) %>%
@@ -814,15 +842,14 @@ preds %>%
     ggplot(aes(price_Decile, Value, shape = Variable)) +
       geom_point(size = 2) + geom_path(aes(group = price_Decile), colour = "black") +
       scale_shape_manual(values = c(2, 17)) +
-      labs(title = "Predicted and observed Price by observed Price Decile")
-
+      labs(title = "Predicted and observed Price by observed Price Decile", subtitle = "Figure 9")
 ```
 
-## Model Generalizability
+### *Model Generalizability*
 We then looked to test the generalizability of our model using a cross-validation test. In this analysis, we split our data into 100 groups - one group acts as the test set with the remaining 99 groups acting as the training set. This process is repeated for each individual group, resulting in 100 "scores" telling us how well our model predicted for each sample of new data. 
 
 Our average MAE of **$38** is similar to the MAE of our initial test, and our standard deviation of **$3.91** suggests there's not significant variation across our 100 groups. The histogram in Figure 9 below confirms the minimal variation showing a relatively narrow distribution of errors. This indicates that our model is relatively generalizable to new rental price data.
-```{r message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, error=FALSE}
 fitControl <- trainControl(method = "cv", 
                            number = 100,
                            savePredictions = TRUE)
@@ -836,20 +863,16 @@ reg1.cv <-
         trControl = fitControl, 
         na.action = na.pass)
 
-reg1.cv 
-
 #Standard Deviation and Histogram of MAE
 reg1.cv.resample <- reg1.cv$resample
 
-sd(reg1.cv.resample$MAE)
-
 ggplot(reg1.cv.resample, aes(x=MAE)) + geom_histogram(color = "#ff5a5f", fill = "#f6c192", alpha = .7, bins = 50) + 
   labs(title="Histogram of Mean Average Error Across 100 Folds",
-       subtitle = "Figure 9") +
+       subtitle = "Figure 10") +
   plotTheme()
 ```
 
-```{r message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, error=FALSE}
 cv_preds <- reg1.cv$pred
 
 map_preds <- rents %>% 
@@ -859,18 +882,6 @@ map_preds <- rents %>%
          PercentError = (rentPrice.AbsError / price2)*100) 
 
 map_preds_new2 <- st_join(neighborhoods_new.sf, map_preds, left = TRUE)
-
-rents %>%
-    st_sf() %>%
-    ggplot() + 
-    geom_sf(data = neighborhoods_new.sf) +
-      geom_sf(data = rents, fill = "grey40") +
-      geom_sf(aes(fill = price2)) +
-      scale_fill_gradient(low = palette5[1], high = palette5[5],
-                        name = "price2") +
-    labs(title = "Mean test set MAE by neighborhood",
-         subtitle = "Figure 5.8") +
-    mapTheme()
 
 map_preds_sum <- map_preds_new2 %>% 
   group_by(neighbourhood.x) %>% 
@@ -883,10 +894,10 @@ map_preds_sum %>%
     ggplot() + 
       geom_sf(data = map_preds_sum, fill = "grey40") +
       geom_sf(aes(fill = meanMAPE)) +
-      scale_fill_gradient(low = palette5[1], high = palette5[5],
+      scale_fill_gradient(low = paletteblues[1], high = paletteblues[5],
                         name = "meanMAPE") +
-    labs(title = "Mean test set MAE by neighborhood",
-         subtitle = "Figure 5.8") +
+    labs(title = "Mean MAPE by neighborhood",
+         subtitle = "Figure 11") +
     mapTheme()
 
 ```
