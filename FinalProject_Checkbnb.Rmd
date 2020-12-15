@@ -10,8 +10,12 @@ output:
       collapsed: false
       smooth_scroll: false
 ---
+### View our Checkbnb pitch here: https://youtu.be/pA7AGRt8cWs 
+
 # The Motivation behind Checkbnb
-Under newfound regulatory guidelines in Amsterdam, the Airbnb market is increasingly challenging to navigate. As of July 2020, the City of Amsterdam outright banned Airbnbs in three of Amsterdam's city center neighborhoods, limited to the number of nights that a host could rent out their property to 30 nights per year, restricted the number of guests that a property can host to 4, and enacted a permitting fee. Checkbnb, an affilate of Airbnb, allows prospective hosts to calculate the potential revenue of renting their property given the property's home specifications, listing details, and access to various amenities and features in the surrounding area.  The provided model leverages existing Amsterdam Airbnb data from 2018 to inform and construct a model that generalizes to Amsterdam's current rental market. The model output, potential revenue, gives users an accurate understanding of the possible financial gains that can result from renting out their home on the Airbnb platform. Given the challenging regulatory landscape, Checkbnb seeks to simplify the decision-making process for prospective hosts through an easy-to-use platform and accurate model. 
+Under new found regulatory guidelines in Amsterdam, the Airbnb market is increasingly challenging to navigate. As of July 2020, the City of Amsterdam outright banned Airbnbs in three of Amsterdam's city center neighborhoods, limited to the number of nights that a host could rent out their property to 30 nights per year, restricted the number of guests that a property can host to 4, and enacted a permitting fee. Checkbnb, an affiliate of Airbnb, allows prospective hosts to calculate the potential revenue of renting their property given the property's home specifications, listing details, and access to various amenities and features in the surrounding area. The provided model leverages existing Amsterdam Airbnb data from 2018 to inform and construct a model that generalizes to Amsterdam's current rental market. The model output: the optimal nightly rate for a property and forecasted potential revenue, give users an accurate understanding of the possible financial gains that can result from renting out their home on the Airbnb platform. Given the challenging regulatory landscape, Checkbnb seeks to simplify the decision-making process for prospective hosts through an easy-to-use platform and accurate model. 
+
+
 ```{r setup, include=FALSE}
 #######################
 #LOADING SET UP PART 1
@@ -318,7 +322,7 @@ st_drop_geometry(listings_details.sf) %>%
 # Feature Engineering
 Apart from some of the features in the original Airbnb dataset, we engineered a series of variables for our final model with the goal of minimizing error in rental price. We wanted to ensure our model was both accurate and generalizable in predicting a range of property types and locations. 
 
-We engineered variables based on descriptions that Airbnb hosts have posted about their home and analyzed them extract keywords associated with higher or lower price properties. We leveraged the nearest neighbor method to look at access to various services and amenities in the city like swimming areas and markets. We calculated *lagPrice* for each listing, which is the average price of the three closest homes to each Airbnb, and incorporated *local Moran's I* analysis, examining high-priced hotspots throughout Amsterdam and calculating the distance to the closest highly significant cluser of high priced homes hotspots. Finally, we also separated select contiuous variables into categories and transformed one categorical variable to numerical to better account for skews in the distribution and enhance the model's accuracy.
+We engineered variables based on descriptions that Airbnb hosts have posted about their home and extracted keywords associated with higher or lower price properties. We leveraged the nearest neighbor method to look at access to various services and amenities in the city like swimming areas and markets. We calculated *lagPrice* for each listing, which is the average price of the three closest homes to each Airbnb, and incorporated *local Moran's I* analysis, examining high-priced hotspots throughout Amsterdam and calculating the distance to the closest highly significant cluster of high priced homes. Finally, we also separated select continuous variables into categories and transformed one categorical variable to numerical to better account for skews in the distribution and enhance the model's accuracy.
 
 ### *Description Analysis*
 We first analyzed the descriptions associated with each listing to determine key words associated with higher or lower prices. We in turn created dummy variables associated with different price points.
@@ -538,7 +542,7 @@ listings_details.sf$lagPrice <- lag.listw(spatialWeights, listings_details.sf$pr
 ```
 
 ### *Local Moran's I*
-Figure 4 shows more localized clustering of higher priced homes along to the canal as well as just north of the canal. Figure 5 identifies the significant hotspots of high-priced rentals, which we then transformed into polygons and calculated distance from each rental property to its closest significant fishnet cell.
+Figure 4 shows more localized clustering of higher priced homes along the canal as well as just north of the canal. Figure 5 identifies the significant hotspots of high-priced rentals, which we then transformed into polygons and calculated distance from each rental property to its closest significant fishnet cell.
 ```{r echo=TRUE, message=FALSE, warning=FALSE, fig.align='center'}
 # Create fishnet
 fishnet <- 
@@ -564,7 +568,7 @@ ggplot() +
   labs(title = "Average Rental Price", subtitle = "Figure 4") +
   mapTheme()
 ```
-```{r echo=TRUE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
+```{r echo=TRUE, fig.height=5, fig.width=10, message=FALSE, warning=FALSE}
 # Local Moran's I
 ## Create neighbor list and spatial weights matrix
 final_net.nb <- poly2nb(as_Spatial(price_net), queen=TRUE)
@@ -616,7 +620,7 @@ listings_details.sf <-
 ```
 
 ### *Transforming Variables*
-We manipulated three of our numerical variables and one categorical variables and transformed them to improve their predictive power in the model.
+We manipulated three of our numerical variables and one categorical variable and transformed them to improve their predictive power in the model.
 ``` {r, warning=FALSE, error=FALSE, message=FALSE}
 listings_details.sf <- 
   listings_details.sf %>% 
@@ -647,7 +651,7 @@ listings_details.sf$Entire_Home <- ifelse(listings_details.sf$Entire_Home == "TR
 ```
 
 # Notable Variables
-The correlation matrix below in Figure 6 shows the included numerical variables in our final model. These included a combination of the variables in the Airbnb dataset as well as the engineered features. Figure 7 looks at three of the significant engineered features, including average distance to the three nearest historical buildings, average price of three nearest rentals, and the existance of coded language affiliated with cheaper properties.
+The correlation matrix below in Figure 6 shows the included numerical variables in our final model. These included a combination of the variables in the Airbnb dataset as well as the engineered features. Figure 7 looks at three of the significant engineered features, including average distance to the three nearest historical buildings, average price of three nearest rentals, and the existence of coded language affiliated with cheaper properties.
 ```{r echo=TRUE, fig.height=30, fig.width=30, message=FALSE, warning=FALSE}
 Vars <- listings_details.sf %>%
   dplyr::select(price2,
@@ -667,7 +671,10 @@ ggcorrplot(
   plotTheme() + theme(axis.text.x = element_text(angle = 45, size=25, hjust = 1),
                          axis.text.y = element_text(size = 25),
                          plot.title = element_text(size = 30),
-                         plot.subtitle = element_text(size = 20))
+                         plot.subtitle = element_text(size = 20),
+                        legend.title = element_text(size = 30),
+                        legend.text = element_text(size = 30),
+                        legend.key.size = unit(3.5, "cm"))
 ```
 
 ```{r, warning=FALSE, error=FALSE, message=FALSE, fig.height=8, fig.width=15}
@@ -698,7 +705,8 @@ cheapcodes_plot <- st_drop_geometry(listings_details.sf) %>%
   facet_wrap(~Variable, ncol = 3, scales = "free") +
   plotTheme()
 
-grid.arrange(Hist_build_plot, lagPrice_plot, cheapcodes_plot, ncol=3, top = "Price as a function of average distance to three nearest historical buildings, average price of three nearest rentals, and the existence of coded language affiliated with cheaper properties", bottom = "Figure 7")
+grid.arrange(Hist_build_plot, lagPrice_plot, cheapcodes_plot, ncol=3, top=textGrob("Price as a function of average distance to three nearest historical buildings, average price 
+of three nearest rentals, and the existence of coded language affiliated with cheaper properties",gp=gpar(fontsize=20,font=3)), bottom = "Figure 7")
 ```
 
 # The Checkbnb Model
@@ -721,15 +729,17 @@ second_column <- c("0.5063","0.5026")
 regression_stats <- data.frame(first_column, second_column)
 
 kable(regression_stats,format = "html", col.names = c('', '')) %>% 
-  kable_styling() %>%
+  kable_styling() %>% 
   footnote(general_title = "\n")
+
+ 
 ```
 
 # Training and Testing our Model
-We trained and tested our model on the selected variables to ensure both accuracy and generalizability. We divided our rental property data and features into separate training and test sets. We used the training set to test the generalizability of the model by accurately predicting home sale prices on a different set of data.
+We trained and tested our model on the selected variables to ensure both accuracy and generalizability. We divided our rental property data and features into separate training and test sets. We used the training set to test the generalizability of the model by accurately predicting home rental prices on a different set of data.
 
 The summary output of the model provides both the significance values for each of the utilized variables to test prices as well as statistics that inform how accurate the model is in predicting price. The p-value, provided for each variable, indicates the confidence level that the variable is a good predictor of home price.
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE, class.output="scroll-100"}
 
 
 rents <- subset(listings_details.sf, price2 > 0)
@@ -777,7 +787,7 @@ kable(regression_stats,format = "html", col.names = c('', '')) %>%
 This section looks at both model accuracy and generalizability. As this analysis will indicate, our predictions are useful in showing how well our model does in accurately predicting rental price in our test set. Our 100-fold cross validation specifically addresses how accurately our model predicts on new data and generalizes across holdout test sets. In turn, understanding our model's accuracy and generalizability is critical to ensuring that Checkbnb users get an accurate predicted rental price no matter their home specifications or location.
 
 ### *Model Accuracy*
-In the process of honinig and engineering new variables for our model, we continually improved it so as to, in part, increase accuracy. As shown in the table below, we calculated how well our final model predicts on the testing set, which indicates a mean absolute error (MAE) of **$38**. This indicates that on average, we are either under or over predicting rental prices by **$38**. The mean absolute percent error (MAPE) of our model is approximately 26%. 
+In the process of honing and engineering new variables for our model, we continually improved it so as to, in part, increase accuracy. As shown in the table below, we calculated how well our final model predicts on the testing set, which indicates a mean absolute error (MAE) of **$38**. This indicates that on average, we are either under or over predicting rental prices by **$38**. The mean absolute percent error (MAPE) of our model is approximately 26%. 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 rents.test <-
   rents.test %>%
@@ -801,7 +811,7 @@ ErrorTable %>%
   row_spec(1, color = "black", background = "#ceeece")
 ```
 
-The plots below show how well our model is predicting rental prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted rent prices match those of the actual values. As seen in the bottom right scatterplot, we are almost perfectly predicting rental prices in accordance with their actual values in our training data. However, our model does slightly underpredict on higher priced rentals in our testing data set.Figure 9, examines the underprediction occurring more closely, where the data is split into 10 deciles or sections. You can see more clearly that we are slightly overpredicting lower prices properties in the initial deciles, perfectly matching properties around the 8th decile, and underpredicting the higher priced homes towards the final deciles.
+The plots below show how well our model is predicting rental prices in both our training and test set data. The orange line indicates a perfect fit, meaning that our predicted rent prices match those of the actual values. As seen in the bottom right scatter plot, we are almost perfectly predicting rental prices in accordance with their actual values in our training data. However, our model does slightly underpredict on higher priced rentals in our testing data set.Figure 9, examines the underprediction occurring more closely, where the data is split into 10 deciles or sections. You can see more clearly that we are slightly overpredicting lower prices properties in the initial deciles, perfectly matching properties around the 8th decile, and underpredicting the higher priced homes towards the final deciles.
 
 ```{r fig.height=20, fig.width=20, message=FALSE, warning=FALSE, error=FALSE, echo=FALSE}
 reg.training_predict <- predict(reg.training, newdata = rents.test)
@@ -912,6 +922,5 @@ map_preds_sum %>%
 # Conclusion
 To optimize the user experience for the Checkbnb customer, we successfully honed a relatively accurate and generalizable model that minimizes price error. Our goal at Checkbnb is for each user to get an accurate predicted price for their individual home so that they can appropriately list and rent their units in a timely fashion. We were able to use and engineer a diverse set of variables that accounts for the spatial process at the neighborhood scale and overall variation in price. Under a stringent and complicated regulatory landscape, this model provides a tool that helps users effectively navigate the Airbnb rental market that is otherwise less accessible in Amsterdam. Airbnb wants to make the prospect of becoming a host as simple and streamlined as possible, and we believe our model effectively achieves this goal.
 
-To improve the analysis, more up-to-date Airbnb data is required since we don't know how the regulatory changes that the City has undertaken may have impacted the rental market. For example, since the city banned Airbnbs from three city center neighborhoods, there may be implications on increased rental prices as a result of a strained market. There is also opportunity to further utilize neighborhood demographics, socioeconomic indicators, and other census variables that we were unable to acquire for this particular study. Access to this data would allow us to better generalize across different neighborhood contexts given and pinpoint any spatial biases in our model. In addition,further streamlining of Amsterdam's neighborhood nomenclature and curtailing the percentage errors in the more Western neighborhoods of Amsterdam will further improve this model 
+To improve the analysis, more up-to-date Airbnb data is required since we don't know how the regulatory changes that the City has undertaken may have impacted the rental market. For example, since the city banned Airbnbs from three city center neighborhoods, there may be implications on increased rental prices as a result of a strained market. There is also opportunity to further utilize neighborhood demographics, socioeconomic indicators, and other census variables that we were unable to acquire for this particular study. Access to this data would allow us to better generalize across different neighborhood contexts given and pinpoint any spatial biases in our model. In addition, further streamlining of Amsterdam's neighborhood nomenclature and curtailing the percentage errors in the more Western neighborhoods of Amsterdam will improve this model.
 
-View our Checkbnb pitch here: https://youtu.be/pA7AGRt8cWs 
